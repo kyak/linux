@@ -859,7 +859,7 @@ static int s5p_mfc_open(struct file *file)
 	 * We'll do mostly sequential access, so sacrifice TLB efficiency for
 	 * faster allocation.
 	 */
-	q->dma_attrs = DMA_ATTR_ALLOC_SINGLE_PAGES;
+	q->dma_attrs = DMA_ATTR_ALLOC_SINGLE_PAGES | DMA_ATTR_NON_CONSISTENT | DMA_ATTR_NO_KERNEL_MAPPING;
 	q->mem_ops = &vb2_dma_contig_memops;
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	ret = vb2_queue_init(q);
@@ -894,7 +894,7 @@ static int s5p_mfc_open(struct file *file)
 	 * We'll do mostly sequential access, so sacrifice TLB efficiency for
 	 * faster allocation.
 	 */
-	q->dma_attrs = DMA_ATTR_ALLOC_SINGLE_PAGES;
+	q->dma_attrs = DMA_ATTR_ALLOC_SINGLE_PAGES | DMA_ATTR_NON_CONSISTENT | DMA_ATTR_NO_KERNEL_MAPPING;
 	q->mem_ops = &vb2_dma_contig_memops;
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 	ret = vb2_queue_init(q);
@@ -942,6 +942,11 @@ static int s5p_mfc_release(struct file *file)
 	mfc_debug_enter();
 	if (dev)
 		mutex_lock(&dev->mfc_mutex);
+
+	/* stop streaming */
+	vb2_streamoff(&ctx->vq_src, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+	vb2_streamoff(&ctx->vq_dst, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+
 	vb2_queue_release(&ctx->vq_src);
 	vb2_queue_release(&ctx->vq_dst);
 	if (dev) {
@@ -1044,12 +1049,9 @@ end:
 static int s5p_mfc_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct s5p_mfc_ctx *ctx = fh_to_ctx(file->private_data);
-	struct s5p_mfc_dev *dev = ctx->dev;
 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
 	int ret;
 
-	if (mutex_lock_interruptible(&dev->mfc_mutex))
-		return -ERESTARTSYS;
 	if (offset < DST_QUEUE_OFF_BASE) {
 		mfc_debug(2, "mmaping source\n");
 		ret = vb2_mmap(&ctx->vq_src, vma);
@@ -1058,7 +1060,6 @@ static int s5p_mfc_mmap(struct file *file, struct vm_area_struct *vma)
 		vma->vm_pgoff -= (DST_QUEUE_OFF_BASE >> PAGE_SHIFT);
 		ret = vb2_mmap(&ctx->vq_dst, vma);
 	}
-	mutex_unlock(&dev->mfc_mutex);
 	return ret;
 }
 
@@ -1380,7 +1381,7 @@ static int s5p_mfc_probe(struct platform_device *pdev)
 	s5p_mfc_init_regs(dev);
 
 	/* Register decoder and encoder */
-	ret = video_register_device(dev->vfd_dec, VFL_TYPE_GRABBER, 0);
+	ret = video_register_device(dev->vfd_dec, VFL_TYPE_GRABBER, 10);
 	if (ret) {
 		v4l2_err(&dev->v4l2_dev, "Failed to register video device\n");
 		goto err_dec_reg;
@@ -1388,7 +1389,7 @@ static int s5p_mfc_probe(struct platform_device *pdev)
 	v4l2_info(&dev->v4l2_dev,
 		  "decoder registered as /dev/video%d\n", dev->vfd_dec->num);
 
-	ret = video_register_device(dev->vfd_enc, VFL_TYPE_GRABBER, 0);
+	ret = video_register_device(dev->vfd_enc, VFL_TYPE_GRABBER, 10);
 	if (ret) {
 		v4l2_err(&dev->v4l2_dev, "Failed to register video device\n");
 		goto err_enc_reg;

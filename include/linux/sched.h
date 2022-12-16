@@ -421,6 +421,15 @@ struct sched_entity {
 	struct list_head		group_node;
 	unsigned int			on_rq;
 
+#ifdef CONFIG_HPERF_HMP
+	long			druntime;
+
+	/* Time of last migration between HMP domains (in jiffies)*/
+	unsigned long		last_migration;
+
+	/* If set, don't touch for migration */
+	int			migrate_candidate;
+#endif
 	u64				exec_start;
 	u64				sum_exec_runtime;
 	u64				vruntime;

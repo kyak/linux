@@ -44,6 +44,7 @@
 
 #include <linux/highmem.h>
 #include <asm/cacheflush.h>
+#include <asm/cputype.h>
 #include <asm/pgalloc.h>
 #include <asm/stage2_pgtable.h>
 
