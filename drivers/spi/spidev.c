@@ -677,6 +677,7 @@ static const struct of_device_id spidev_dt_ids[] = {
 	{ .compatible = "lineartechnology,ltc2488" },
 	{ .compatible = "ge,achc" },
 	{ .compatible = "semtech,sx1301" },
+	{ .compatible = "odroid,spidev" },
 	{},
 };
 MODULE_DEVICE_TABLE(of, spidev_dt_ids);
@@ -792,6 +793,10 @@ static int spidev_remove(struct spi_device *spi)
 	/* make sure ops on existing fds can abort cleanly */
 	spin_lock_irq(&spidev->spi_lock);
 	spidev->spi = NULL;
+
+	if(spi->controller->cleanup)
+		spi->controller->cleanup(spi);
+
 	spin_unlock_irq(&spidev->spi_lock);
 
 	list_del(&spidev->device_entry);
