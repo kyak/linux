@@ -27,6 +27,10 @@
 #define SD_OVERLAP		0x2000	/* sched_domains of this level overlap */
 #define SD_NUMA			0x4000	/* cross-node balancing */
 
+#ifdef CONFIG_HPERF_HMP
+#define SD_HMP_BALANCE		0x8000	/* Use HMP load balancing algorithm */
+#endif
+
 /*
  * Increase resolution of cpu_capacity calculations
  */
@@ -106,6 +110,10 @@ struct sched_domain {
 
 	u64 avg_scan_cost;		/* select_idle_sibling */
 
+#ifdef CONFIG_HPERF_HMP
+	struct sched_group *a15_group;
+	struct sched_group *a7_group;
+#endif
 #ifdef CONFIG_SCHEDSTATS
 	/* load_balance() stats */
 	unsigned int lb_count[CPU_MAX_IDLE_TYPES];

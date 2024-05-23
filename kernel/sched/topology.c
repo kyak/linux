@@ -7,6 +7,16 @@
 
 #include "sched.h"
 
+#ifdef CONFIG_HPERF_HMP
+/* cpumask for A15 cpus */
+static DECLARE_BITMAP(cpu_fastest_bits, CONFIG_NR_CPUS);
+struct cpumask *cpu_fastest_mask = to_cpumask(cpu_fastest_bits);
+
+/* cpumask for A7 cpus */
+static DECLARE_BITMAP(cpu_slowest_bits, CONFIG_NR_CPUS);
+struct cpumask *cpu_slowest_mask = to_cpumask(cpu_slowest_bits);
+#endif
+
 DEFINE_MUTEX(sched_domains_mutex);
 
 /* Protected by sched_domains_mutex: */
@@ -1144,6 +1154,9 @@ sd_init(struct sched_domain_topology_level *tl,
 					| 0*SD_PREFER_SIBLING
 					| 0*SD_NUMA
 					| sd_flags
+#ifdef CONFIG_HPERF_HMP
+					| (tl->flags & SD_HMP_BALANCE)
+#endif
 					,
 
 		.last_balance		= jiffies,
@@ -1227,7 +1240,11 @@ static struct sched_domain_topology_level default_topology[] = {
 #ifdef CONFIG_SCHED_MC
 	{ cpu_coregroup_mask, cpu_core_flags, SD_INIT_NAME(MC) },
 #endif
-	{ cpu_cpu_mask, SD_INIT_NAME(DIE) },
+	{ cpu_cpu_mask,
+#ifdef CONFIG_HPERF_HMP
+	 .flags = SD_HMP_BALANCE,
+#endif
+	 SD_INIT_NAME(DIE)},
 	{ NULL, },
 };
 
@@ -1711,6 +1728,45 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 
 		cpu_attach_domain(sd, d.rd, i);
 	}
+
+#ifdef CONFIG_HPERF_HMP
+	for (i = nr_cpumask_bits - 1; i >= 0; i--) {
+		if (!cpumask_test_cpu(i, cpu_map))
+			continue;
+
+		for (sd = *per_cpu_ptr(d.sd, i); sd; sd = sd->parent) {
+			struct sched_group *sg;
+			sd->a7_group = NULL;
+			sd->a15_group = NULL;
+
+			/* Process only HMP domains */
+			if (!(sd->flags & SD_HMP_BALANCE))
+				continue;
+
+			/*
+			 * Process sched groups of this domain.
+			 * Attach sg to hmp domains.
+			 */
+			sg = sd->groups;
+			do {
+				if (!sg->sgc)
+					goto next_sg;
+#ifdef CONFIG_SCHED_DEBUG
+				printk(KERN_EMERG "Attaching CPUs 0x%08lX to domain %s\n",
+				       sched_group_span(sg)->bits[0], sd->name);
+#endif
+				if (cpumask_intersects(sched_group_span(sg),
+							cpu_fastest_mask))
+					sd->a15_group = sg;
+				else
+					sd->a7_group = sg;
+next_sg:
+				sg = sg->next;
+			} while (sg != sd->groups);
+		}
+	}
+#endif /* CONFIG_HPERF_HMP */
+
 	rcu_read_unlock();
 
 	if (rq && sched_debug_enabled) {

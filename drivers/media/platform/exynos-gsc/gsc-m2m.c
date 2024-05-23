@@ -726,14 +726,9 @@ static unsigned int gsc_m2m_poll(struct file *file,
 static int gsc_m2m_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct gsc_ctx *ctx = fh_to_ctx(file->private_data);
-	struct gsc_dev *gsc = ctx->gsc_dev;
 	int ret;
 
-	if (mutex_lock_interruptible(&gsc->lock))
-		return -ERESTARTSYS;
-
 	ret = v4l2_m2m_mmap(file, ctx->m2m_ctx, vma);
-	mutex_unlock(&gsc->lock);
 
 	return ret;
 }
@@ -780,7 +775,7 @@ int gsc_register_m2m_device(struct gsc_dev *gsc)
 		return PTR_ERR(gsc->m2m.m2m_dev);
 	}
 
-	ret = video_register_device(&gsc->vdev, VFL_TYPE_GRABBER, -1);
+	ret = video_register_device(&gsc->vdev, VFL_TYPE_GRABBER, 20);
 	if (ret) {
 		dev_err(&pdev->dev,
 			 "%s(): failed to register video device\n", __func__);
